@@ -1,0 +1,87 @@
+{
+    "Lagos": {
+      "ikeja": {
+        "ogba": [
+          {
+            "description": "2-bedroom flat with modern facilities.",
+            "price": "1,500,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          },
+          {
+            "description": "3-bedroom apartment with ample parking.",
+            "price": "2,000,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ],
+        "ojodu": [
+          {
+            "description": "1-bedroom studio apartment.",
+            "price": "800,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ]
+      },
+      "surulere": {
+        "lawanson": [
+          {
+            "description": "4-bedroom duplex with swimming pool.",
+            "price": "3,500,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ]
+      }
+    },
+    "Oyo": {
+      "ibadan": {
+        "bodija": [
+          {
+            "description": "3-bedroom flat in serene environment.",
+            "price": "1,200,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ]
+      }
+    },
+    "Akwa_ibom": {
+      "uyo": {
+        "ewet_housing": [
+          {
+            "description": "Luxury 4-bedroom bungalow with a spacious compound.",
+            "price": "3,800,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          },
+          {
+            "description": "Modern 3-bedroom apartment with 24/7 security.",
+            "price": "2,500,000 Naira",
+           "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ],
+        "shelter_afrique": [
+          {
+            "description": "2-bedroom apartment in a gated community.",
+            "price": "1,800,000 Naira",
+           "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ]
+      },
+      "ikot_ekpene": {
+        "ikono": [
+          {
+            "description": "3-bedroom house with a garden.",
+            "price": "2,200,000 Naira",
+            "youtube_link": "https://www.youtube.com/watch?v=HPkuEIgo2-o",
+            "contact": "https://wa.me/2347010174548"
+          }
+        ]
+      }
+    }
+  }
+  
