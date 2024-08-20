@@ -1,6 +1,18 @@
 require('dotenv').config();
+const Sheets = require("@googleapis/sheets");
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
+
+// Initialize Google Sheets API
+const sheets = Sheets.sheets('v4');
+const auth = new Sheets.auth.GoogleAuth({
+  keyFile: process.env.GOOGLE_SHEET_KEY_PATH,
+  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+});
+
+// Google Sheet ID and range
+const spreadsheetId = process.env.SHEET_ID;
+const sheetRange = 'Sheet1!A2:G'; // Adjust the range according to your sheet layout
 
 // Load bot token from .env file
 const token = process.env.BOT_TOKEN;
@@ -11,125 +23,202 @@ const bot = new TelegramBot(token, { polling: true });
 // Load property data
 const properties = JSON.parse(fs.readFileSync('./data/properties.json', 'utf8'));
 
+// Load LGA data
+const lgadata = JSON.parse(fs.readFileSync('./data/lgadata.json', 'utf8'));
+
+const gridColumnCount = 3;  // Number of LGAs per row in the grid
+
+// Function to format LGAs into a grid
+function formatLGAAsGrid(lgas) {
+    const inlineKeyboard = [];
+    let row = [];
+    lgas.forEach((lga, index) => {
+      row.push({ text: lga, callback_data: `lga:${lga}` });
+      if ((index + 1) % gridColumnCount === 0) {
+        inlineKeyboard.push(row);
+        row = [];
+      }
+    });
+    if (row.length) {
+      inlineKeyboard.push(row);
+    }
+    return inlineKeyboard;
+  }
+
+// Function to generate area buttons with disabled state if no properties are available
+function generateAreaButtons(selectedLga, properties) {
+    const areas = lgadata["Akwa Ibom"][selectedLga];
+    const areaButtons = areas.map(area => {
+      const hasProperties = properties["Akwa Ibom"][selectedLga][area].length > 0;
+  
+      return [{
+        text: area + (hasProperties ? '' : ' (No properties)'),
+        callback_data: hasProperties ? `area:${selectedLga}:${area}` : 'disabled',
+        ...(hasProperties ? {} : { disable_notification: true })
+      }];
+    });
+  
+    return areaButtons;
+  }
+
+// Function to fetch data from Google Sheets
+async function getSheetData() {
+    const client = await auth.getClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: sheetRange,
+      auth: client,
+    });
+    
+    const rows = response.data.values;
+    const properties = {};
+  
+    if (rows.length) {
+      rows.forEach(row => {
+        const [lga, area, description, price, youtubeLink, contact, imageUrl] = row;
+        if (!properties[lga]) properties[lga] = {};
+        if (!properties[lga][area]) properties[lga][area] = [];
+        
+        properties[lga][area].push({
+          description,
+          price,
+          youtube_link: youtubeLink,
+          contact,
+          image_url: imageUrl
+        });
+      });
+    }
+    
+    return properties;
+  }
+  
 // Start command
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "Welcome! Please select a state to search for properties.", {
+    bot.sendMessage(msg.chat.id, "Welcome! Please select an LGA to search for properties or type the name of an LGA to search.", {
       reply_markup: {
-        inline_keyboard: [
-          ...Object.keys(properties).map(state => [{ text: state, callback_data: `state:${state}` }])
-        ]
+        inline_keyboard: formatLGAAsGrid(Object.keys(lgadata["Akwa Ibom"]))
       }
     });
   });
-  
 
-// Handle callback queries
-// Handle callback queries
-bot.on('callback_query', (callbackQuery) => {
+  // Search command
+bot.onText(/\/search (.+)/, (msg, match) => {
+    const searchTerm = match[1].toLowerCase();
+    const filteredLGAs = Object.keys(lgadata["Akwa Ibom"]).filter(lga => lga.toLowerCase().includes(searchTerm));
+  
+    if (filteredLGAs.length > 0) {
+      bot.sendMessage(msg.chat.id, "Here are the matching LGAs:", {
+        reply_markup: {
+          inline_keyboard: formatLGAAsGrid(filteredLGAs)
+        }
+      });
+    } else {
+      bot.sendMessage(msg.chat.id, "No matching LGAs found. Please try another search term.");
+    }
+  });
+  
+  // Handle callback queries and other logic
+  bot.on('callback_query', async (callbackQuery) => {
     const msg = callbackQuery.message;
     const data = callbackQuery.data;
-  
-    if (data.startsWith('state:')) {
-      const selectedState = data.split(':')[1];
-      bot.sendMessage(msg.chat.id, `You selected ${selectedState}. Now, choose an LGA:`, {
-        reply_markup: {
-            inline_keyboard: [
-              ...Object.keys(properties[selectedState]).map(lga => [{ text: lga, callback_data: `lga:${selectedState}:${lga}` }])
-            ]
-          }
-      });
-    }
+    const properties = await getSheetData();
   
     if (data.startsWith('lga:')) {
-      const [_, selectedState, selectedLga] = data.split(':');
-      bot.sendMessage(msg.chat.id, `You selected ${selectedLga}. Now, choose an area:`, {
+      const selectedLga = data.split(':')[1];
+      const areas = lgadata["Akwa Ibom"][selectedLga];
+      
+      bot.sendMessage(msg.chat.id, `You selected *${selectedLga}*. Now, choose an area:`, {
+        parse_mode: "Markdown",
         reply_markup: {
-            inline_keyboard: [
-              ...Object.keys(properties[selectedState][selectedLga]).map(area => [{ text: area, callback_data: `area:${selectedState}:${selectedLga}:${area}` }])
-            ]
-          }
+          inline_keyboard: areas.map(area => [{ text: area, callback_data: `area:${selectedLga}:${area}` }])
+        }
       });
     }
   
     if (data.startsWith('area:')) {
-        const [_, selectedState, selectedLga, selectedArea] = data.split(':');
+      const [_, selectedLga, selectedArea] = data.split(':');
+      if(properties[selectedLga] == undefined){
+        return  bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}*. Please choose another area.`, {
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: lgadata["Akwa Ibom"][selectedLga].map(area => [{ text: area, callback_data: `area:${selectedLga}:${area}` }])
+            }
+          });
+      }
+      const listings = properties[selectedLga][selectedArea];
       
-        // Ask the user to select a price range
+      if (listings && listings.length > 0) {
+        // Ask for price range
         bot.sendMessage(msg.chat.id, `Please select a price range for properties in *${selectedArea}*`, {
           parse_mode: "Markdown",
           reply_markup: {
             inline_keyboard: [
               [
-                { text: '150k-300k', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:150000-300000` },
-                { text: '300k-500k', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:300000-500000` }
+                { text: '150k-300k', callback_data: `price:${selectedLga}:${selectedArea}:150000-300000` },
+                { text: '300k-500k', callback_data: `price:${selectedLga}:${selectedArea}:300000-500000` }
               ],
               [
-                { text: '500k-1m', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:500000-1000000` },
-                { text: '1m-1.5m', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:1000000-1500000` }
+                { text: '500k-1m', callback_data: `price:${selectedLga}:${selectedArea}:500000-1000000` },
+                { text: '1m-1.5m', callback_data: `price:${selectedLga}:${selectedArea}:1000000-1500000` }
               ],
               [
-                { text: '1.5m-above', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:1500000-999999999` }
+                { text: '1.5m-above', callback_data: `price:${selectedLga}:${selectedArea}:1500000-999999999` }
               ],
               [
-                { text: 'All Houses', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:all` }
+                { text: 'All Houses', callback_data: `price:${selectedLga}:${selectedArea}:all` }
+              ]
+            ]
+          }
+        });
+      } else {
+        bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}*. Please choose another area.`, {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: lgadata["Akwa Ibom"][selectedLga].map(area => [{ text: area, callback_data: `area:${selectedLga}:${area}` }])
+          }
+        });
+      }
+    }
+  
+    if (data.startsWith('price:')) {
+      const [_, selectedLga, selectedArea, priceRange] = data.split(':');
+      const listings = properties[selectedLga][selectedArea];
+
+      const filteredListings = priceRange === 'all' ? listings : listings.filter(listing => {
+        const price = parseInt(listing.price.replace(/[^0-9]/g, ''));
+        const [minPrice, maxPrice] = priceRange.split('-').map(Number);
+        return price >= minPrice && (maxPrice === 999999999 || price <= maxPrice);
+      });
+  
+      if (filteredListings.length > 0) {
+        filteredListings.forEach(listing => {
+          bot.sendMessage(msg.chat.id, 
+            `*${selectedArea.toUpperCase()}*\n\n*Description:* ${listing.description}\n\n*Price:* ₦${listing.price}\n\n📞 [Contact The Agent](https://wa.me/${listing.contact})\n\n[Video of the house](${listing.youtube_link})`, 
+            { parse_mode: "Markdown" }
+          );
+        });
+      } else {
+        bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}* within the selected price range. Please choose another price range:`, {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '0k-300k', callback_data: `price:${selectedLga}:${selectedArea}:0-300000` },
+                { text: '300k-500k', callback_data: `price:${selectedLga}:${selectedArea}:300000-500000` }
+              ],
+              [
+                { text: '500k-1m', callback_data: `price:${selectedLga}:${selectedArea}:500000-1000000` },
+                { text: '1m-1.5m', callback_data: `price:${selectedLga}:${selectedArea}:1000000-1500000` }
+              ],
+              [
+                { text: '1.5m-above', callback_data: `price:${selectedLga}:${selectedArea}:1500000-999999999` }
+              ],
+              [
+                { text: 'All Houses', callback_data: `price:${selectedLga}:${selectedArea}:all` }
               ]
             ]
           }
         });
       }
-      
-      
-      // Handle price range selection
-      if (data.startsWith('price:')) {
-        const [_, selectedState, selectedLga, selectedArea, selectedRange] = data.split(':');
-        const listings = properties[selectedState][selectedLga][selectedArea];
-        let filteredListings;
-      
-        if (selectedRange === 'all') {
-          filteredListings = listings; // No filter, show all properties
-        } else {
-          const [minPrice, maxPrice] = selectedRange.split('-').map(Number);
-          filteredListings = listings.filter(listing => {
-            const price = parseFloat(listing.price.replace(/[^0-9.-]+/g, "")); // Convert price to a numeric value
-            return price >= minPrice && price <= maxPrice;
-          });
-        }
-      
-        if (filteredListings.length > 0) {
-          filteredListings.forEach(listing => {
-            // Display the area name, description, and contact details
-            bot.sendMessage(msg.chat.id, 
-              `*${selectedArea.toUpperCase()}*\n\n*${listing.description}*\n\n*Price:* ₦${listing.price}\n\n📞 [Contact The Agent](https://wa.me/${listing.contact})\n\n[Video of the house](${listing.youtube_link})`, 
-              { parse_mode: "Markdown" }
-            );
-          });
-        } else {
-          // Inform the user that no properties were found and display price ranges again
-          bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}* within the selected price range. Please choose another price range:`, {
-            parse_mode: "Markdown",
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: '150k-300k', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:150000-300000` },
-                  { text: '300k-500k', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:300000-500000` }
-                ],
-                [
-                  { text: '500k-1m', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:500000-1000000` },
-                  { text: '1m-1.5m', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:1000000-1500000` }
-                ],
-                [
-                  { text: '1.5m-above', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:1500000-999999999` }
-                ],
-                [
-                  { text: 'All Houses', callback_data: `price:${selectedState}:${selectedLga}:${selectedArea}:all` }
-                ]
-              ]
-            }
-          });
-        }
-      }
-      
-      
-      
-      
+    }
   });
