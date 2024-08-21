@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 const app = express();
 app.use(bodyParser.json());
 
+
 // Server setup
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -26,6 +27,8 @@ const sheetRange = 'Sheet1!A2:G'; // Adjust the range according to your sheet la
 
 // Load bot token from .env file
 const token = process.env.BOT_TOKEN;
+// const webHookUrl = `https://api.telegram.org/bot<${token}>/setWebhook?url=https://your-app.vercel.app/api/telegram-webhook`
+bot.setWebHook("public-url.com",{certificate:"./key.pem"})
 
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
