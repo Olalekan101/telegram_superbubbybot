@@ -31,7 +31,227 @@ const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
 // Load LGA data
-const lgadata = JSON.parse(fs.readFileSync('./data/lgadata.json', 'utf8'));
+const lgadata = {
+  "Akwa Ibom": {
+    "Abak": [
+      "Midim",
+      "Otoro",
+      "Afaha Obong",
+      "Abak Urban",
+      "Afi Uyo"
+    ],
+    "Eastern Obolo": [
+      "Iko Town",
+      "Okoroete",
+      "Okoita",
+      "Ele",
+      "Aba"
+    ],
+    "Eket": [
+      "Urban",
+      "Okon",
+      "Afaha Eket",
+      "Idua",
+      "Central"
+    ],
+    "Esit Eket": [
+      "Uquo",
+      "Etebi Idung Assan",
+      "Etebi Idung Akpaisang",
+      "Etebi Idung Akpana",
+      "Idung Nne Ekpe"
+    ],
+    "Essien Udim": [
+      "Adiasim",
+      "Ukana",
+      "Afaha",
+      "Ikpe Annang",
+      "Ikot Obong"
+    ],
+    "Etim Ekpo": [
+      "Utu",
+      "Uruk Ata Ikot Ebo",
+      "Obong",
+      "Ika Annang",
+      "Ikot Uso Akpan"
+    ],
+    "Etinan": [
+      "Etinan Urban",
+      "Mbioto",
+      "Ekpene Ukim",
+      "Ndon Eyo",
+      "Ikot Ebo"
+    ],
+    "Ibeno": [
+      "Ukpenekang",
+      "Mkpanak",
+      "Eket",
+      "Iwuo Okpom",
+      "Ikot Enin"
+    ],
+    "Ibesikpo Asutan": [
+      "Ibesikpo Urban",
+      "Asutan Ekpe",
+      "Nung Udoe",
+      "Afaha Ekid",
+      "Urua Nka"
+    ],
+    "Ibiono Ibom": [
+      "Ikot Ada Idem",
+      "Ikot Obong",
+      "Ikot Ekang",
+      "Ikot Akpan Abia",
+      "Ibiono Ibom Urban"
+    ],
+    "Ika": [
+      "Urua Inyang",
+      "Achan Ika",
+      "Ika Urban",
+      "Ikot Akpan Nkuk",
+      "Ikot Esop"
+    ],
+    "Ikono": [
+      "Ikono Urban",
+      "Ikot Ekpene",
+      "Ibiaku",
+      "Itak",
+      "Nkwot"
+    ],
+    "Ikot Abasi": [
+      "Ikot Abasi Urban",
+      "Ikpa Ibekwe",
+      "Ikot Okoro",
+      "Ibekwe",
+      "Essene"
+    ],
+    "Ikot Ekpene": [
+      "Ikot Ekpene Urban",
+      "Abiakpo Ikot Essien",
+      "Odoro Ikot",
+      "Ikot Abia",
+      "Ikot Usung"
+    ],
+    "Ini": [
+      "Ikpe",
+      "Ikot Nko",
+      "Afaha",
+      "Itu Mbonuso",
+      "Itu"
+    ],
+    "Itu": [
+      "Itu Urban",
+      "Oku Iboku",
+      "Ikot Ekang",
+      "Ikot Ekwere",
+      "Nnung Udoe"
+    ],
+    "Mbo": [
+      "Enwang",
+      "Ebughu",
+      "Udesi",
+      "Effiat",
+      "Ibaka"
+    ],
+    "Mkpat Enin": [
+      "Ikot Akpaden",
+      "Ikot Etetuk",
+      "Ikot Unya",
+      "Ikot Abasi",
+      "Ikot Obong"
+    ],
+    "Nsit Atai": [
+      "Odoro Atai",
+      "Ikot Ibiok",
+      "Ikot Udo",
+      "Ikot Akpan",
+      "Ikot Abasi"
+    ],
+    "Nsit Ibom": [
+      "Afaha Offiong",
+      "Ikot Obio Akpa",
+      "Ikot Ubo",
+      "Obio Ibiono",
+      "Afaha Ikot Ebak"
+    ],
+    "Nsit Ubium": [
+      "Ikot Edibon",
+      "Ikot Akpan",
+      "Ikot Akan",
+      "Afaha Offiong",
+      "Ikot Akpa Nkuk"
+    ],
+    "Obot Akara": [
+      "Ikot Abia",
+      "Ikot Ekpene",
+      "Nto Edino",
+      "Urua Inyang",
+      "Ikot Ubo"
+    ],
+    "Okobo": [
+      "Okopedi",
+      "Atabong",
+      "Ebughu",
+      "Obufi",
+      "Ekpene"
+    ],
+    "Onna": [
+      "Awa",
+      "Ikot Akpatek",
+      "Ikot Eko Ibon",
+      "Ikot Ibiok",
+      "Ikot Nnung"
+    ],
+    "Oron": [
+      "Oron Urban",
+      "Uya Oro",
+      "Eyo Abasi",
+      "Ikot Osung",
+      "Afaha Okpo"
+    ],
+    "Oruk Anam": [
+      "Ikot Ibritam",
+      "Ikot Esen",
+      "Ikot Ekpene",
+      "Ikot Obio",
+      "Ikot Okoro"
+    ],
+    "Udung Uko": [
+      "Udung Uko",
+      "Ibiaku",
+      "Ebughu",
+      "Afaha Udo",
+      "Ikot Enin"
+    ],
+    "Ukanafun": [
+      "Ukanafun Urban",
+      "Ikot Akpa Nkuk",
+      "Ikot Ekang",
+      "Ikot Ibritam",
+      "Ikot Idem"
+    ],
+    "Uruan": [
+      "Idu",
+      "Ekim",
+      "Ikot Uso",
+      "Ikot Akpa",
+      "Ikot Ntung"
+    ],
+    "Urue Offong Oruko": [
+      "Urue Offong",
+      "Oruko",
+      "Ebughu",
+      "Okopedi",
+      "Afaha Ikot"
+    ],
+    "Uyo": [
+      "Uyo Urban",
+      "Ikot Ekpene",
+      "Afaha",
+      "Nwaniba",
+      "Ita Akpan"
+    ]
+  }
+};
 
 const gridColumnCount = 3;  // Number of LGAs per row in the grid
 
