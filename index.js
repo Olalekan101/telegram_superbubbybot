@@ -30,9 +30,6 @@ const token = process.env.BOT_TOKEN;
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
 
-// Load property data
-const properties = JSON.parse(fs.readFileSync('./data/properties.json', 'utf8'));
-
 // Load LGA data
 const lgadata = JSON.parse(fs.readFileSync('./data/lgadata.json', 'utf8'));
 
@@ -53,22 +50,6 @@ function formatLGAAsGrid(lgas) {
       inlineKeyboard.push(row);
     }
     return inlineKeyboard;
-  }
-
-// Function to generate area buttons with disabled state if no properties are available
-function generateAreaButtons(selectedLga, properties) {
-    const areas = lgadata["Akwa Ibom"][selectedLga];
-    const areaButtons = areas.map(area => {
-      const hasProperties = properties["Akwa Ibom"][selectedLga][area].length > 0;
-  
-      return [{
-        text: area + (hasProperties ? '' : ' (No properties)'),
-        callback_data: hasProperties ? `area:${selectedLga}:${area}` : 'disabled',
-        ...(hasProperties ? {} : { disable_notification: true })
-      }];
-    });
-  
-    return areaButtons;
   }
 
 // Function to fetch data from Google Sheets
