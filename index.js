@@ -32,7 +32,7 @@ const url ='https://telegram-superbubbybot-h27q.vercel.app'
 
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
-bot.setWebHook(`${url}/${token}`)
+bot.setWebHook(`${url}/bot${token}`)
 
 // Load LGA data
 const lgadata = {
