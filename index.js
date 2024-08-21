@@ -27,7 +27,7 @@ const sheetRange = 'Sheet1!A2:G'; // Adjust the range according to your sheet la
 
 // Load bot token from .env file
 const token = process.env.BOT_TOKEN;
-const webHookUrl = `https://api.telegram.org/bot<${token}>/setWebhook?url=https://telegram-superbubbybot.vercel.app/`
+const webHookUrl = `https://api.telegram.org/bot<${token}>/setWebhook?url=https://telegram-superbubbybot-h27q.vercel.app/`
 
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
