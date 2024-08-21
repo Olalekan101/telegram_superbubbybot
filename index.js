@@ -2,11 +2,21 @@ require('dotenv').config();
 const Sheets = require("@googleapis/sheets");
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
+const express = require('express');
+const bodyParser = require('body-parser');
+const app = express();
+app.use(bodyParser.json());
+
+// Server setup
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 // Initialize Google Sheets API
 const sheets = Sheets.sheets('v4');
 const auth = new Sheets.auth.GoogleAuth({
-  keyFile: process.env.GOOGLE_SHEET_KEY_PATH,
+  credentials:JSON.parse(process.env.GOOGLE_SHEET_KEY),
   scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
 });
 
