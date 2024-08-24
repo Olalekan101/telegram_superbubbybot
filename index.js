@@ -22,15 +22,21 @@ const token = process.env.BOT_TOKEN;
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
 
-// Function to upload a single image to Imgur
+// Function to upload image to Imgur
 async function uploadImageToImgur(imageBuffer) {
+  const clientId = process.env.IMGUR_CLIENT_ID;
   const response = await axios.post('https://api.imgur.com/3/image', imageBuffer, {
       headers: {
-          'Authorization': `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
-          'Content-Type': 'multipart/form-data'
+          Authorization: `Client-ID ${clientId}`,
+          'Content-Type': 'application/octet-stream'
       }
   });
-  return response.data.data.link;  // Returns the image URL
+
+  if (response.data.success) {
+      return response.data.data.link; // Return the image URL
+  } else {
+      throw new Error('Failed to upload image to Imgur');
+  }
 }
 
 // Function to append data to Google Sheets
@@ -274,7 +280,7 @@ const gridColumnCount = 3;  // Number of LGAs per row in the grid
 // Start command
 bot.onText(/\/start/, (msg) => {
 
-  bot.sendMessage(msg.chat.id, "Welcome! Please choose an option:", {
+  bot.sendMessage(msg.chat.id, `Welcome! ${msg.from.first_name} Please choose an option:`, {
     reply_markup: {
       keyboard: [
         [{ text: 'Rent House' }, { text: 'Upload House' }], [{ text: 'Show My Properties' }]
@@ -290,7 +296,6 @@ bot.onText(/\/start/, (msg) => {
 bot.on('message', async(msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
-console.log(text,"plplplplplp");
 
   if (text === 'Rent House') {
     bot.sendMessage(chatId, "Please select an LGA to search for properties or type the name of an LGA to search.", {
@@ -375,14 +380,14 @@ function formatLGAAsGridUpload(lgas) {
 
                             // Step 7: Collect multiple images
                             const imageUrls = [];
-                            bot.sendMessage(chatId, 'Please upload images of the property. Send "done" when finished.');
+                            bot.sendMessage(chatId, 'Please upload images of the property.');
 
                             const imageListener = bot.on('message', async (imageMsg) => {
                                 if (imageMsg.text && imageMsg.text.toLowerCase() === 'done') {
                                     bot.removeListener('message', imageListener);
 
                                     // Step 8: Store all details in Google Sheets
-                                    const row = [lga, area, description, address, price, imageUrls.join(','), contact, userId];
+                                    const row = [lga, area, description, price,' ', contact, imageUrls.join(','), address, false, msg.from.id];
 
                                     // Append the row to Google Sheets
                                     await appendToSheet(row);
@@ -398,7 +403,7 @@ function formatLGAAsGridUpload(lgas) {
                                         const imgurUrl = await uploadImageToImgur(imageBuffer.data);
 
                                         imageUrls.push(imgurUrl);
-                                        bot.sendMessage(chatId, 'Image uploaded. You can upload more or send "done" to finish.');
+                                        bot.sendMessage(chatId, 'Image uploaded. send "done" to finish.');
                                     } catch (error) {
                                         console.error('Error uploading image:', error);
                                         bot.sendMessage(chatId, 'Failed to upload image. Please try again.');
