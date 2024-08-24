@@ -1,18 +1,20 @@
 require('dotenv').config();
 const Sheets = require("@googleapis/sheets");
 const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios');
+
 // const fs = require('fs');
 
 // Initialize Google Sheets API
 const sheets = Sheets.sheets('v4');
 const auth = new Sheets.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_SHEET_KEY),
-  scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
 // Google Sheet ID and range
 const spreadsheetId = process.env.SHEET_ID;
-const sheetRange = 'Sheet1!A2:H'; // Adjust the range according to your sheet layout
+const sheetRange = 'Sheet1!A2:J'; // Adjust the range according to your sheet layout
 
 // Load bot token from .env file
 const token = process.env.BOT_TOKEN;
@@ -20,8 +22,30 @@ const token = process.env.BOT_TOKEN;
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
 
-// Load LGA data
-// const lgadata = JSON.parse(fs.readFileSync('./data/lgadata.json', 'utf8'));
+// Function to upload a single image to Imgur
+async function uploadImageToImgur(imageBuffer) {
+  const response = await axios.post('https://api.imgur.com/3/image', imageBuffer, {
+      headers: {
+          'Authorization': `Client-ID ${process.env.IMGUR_CLIENT_ID}`,
+          'Content-Type': 'multipart/form-data'
+      }
+  });
+  return response.data.data.link;  // Returns the image URL
+}
+
+// Function to append data to Google Sheets
+async function appendToSheet(row) {
+  const client = await auth.getClient();
+  await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: sheetRange,  // Adjust range if needed
+      valueInputOption: 'RAW',
+      resource: {
+          values: [row]
+      },
+      auth: client,
+  });
+}
 
 const lgadata = {
   "Akwa Ibom": {
@@ -247,6 +271,192 @@ const lgadata = {
 
 const gridColumnCount = 3;  // Number of LGAs per row in the grid
 
+// Start command
+bot.onText(/\/start/, (msg) => {
+
+  bot.sendMessage(msg.chat.id, "Welcome! Please choose an option:", {
+    reply_markup: {
+      keyboard: [
+        [{ text: 'Rent House' }, { text: 'Upload House' }], [{ text: 'Show My Properties' }]
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: false
+    }
+  });
+  
+});
+
+// Handle text messages
+bot.on('message', async(msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+console.log(text,"plplplplplp");
+
+  if (text === 'Rent House') {
+    bot.sendMessage(chatId, "Please select an LGA to search for properties or type the name of an LGA to search.", {
+      reply_markup: {
+        inline_keyboard: formatLGAAsGrid(Object.keys(lgadata["Akwa Ibom"]))
+      }
+    });
+  } 
+  else if (text === 'Upload House') {
+
+    // Function to format LGAs into a grid
+function formatLGAAsGridUpload(lgas) {
+  const inlineKeyboard = [];
+  let row = [];
+  lgas.forEach((lga, index) => {
+    row.push({ text: lga, callback_data: `upload_lga:${lga}` });
+    if ((index + 1) % gridColumnCount === 0) {
+      inlineKeyboard.push(row);
+      row = [];
+    }
+  });
+  if (row.length) {
+    inlineKeyboard.push(row);
+  }
+  return inlineKeyboard;
+}
+
+    // Step 1: Present buttons for LGA selection
+    bot.sendMessage(chatId, 'Please select the Local Government Area (LGA) for the property:', {
+        reply_markup: {
+            inline_keyboard: formatLGAAsGridUpload(Object.keys(lgadata["Akwa Ibom"])),
+        },
+    });
+
+    // Listen for LGA selection
+    bot.once('callback_query', (lgaCallback) => {
+        const lga = lgaCallback.data.split(':')[1];
+
+        // Step 2: Present buttons for area selection
+        const areaOptions = lgadata['Akwa Ibom'][lga].map(area => [{ text: area, callback_data: `upload_area:${lga}:${area}` }]);
+        bot.sendMessage(chatId, 'Please select the area:', {
+            reply_markup: {
+                inline_keyboard: areaOptions,
+            },
+        });
+
+        bot.once('callback_query', (areaCallback) => {
+            const area = areaCallback.data.split(':')[2];
+
+            // Step 3: Present buttons for property description selection
+            const descriptionOptions = [
+                { text: 'Single Room', callback_data: `upload_description:${lga}:${area}:Single Room` },
+                { text: 'Self Contain', callback_data: `upload_description:${lga}:${area}:Self Contain` },
+                { text: '1 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:1 Bedroom Flat` },
+                { text: '2 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:2 Bedroom Flat` },
+                { text: '3 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:3 Bedroom Flat` },
+                { text: 'Shop', callback_data: `upload_description:${lga}:${area}:Shop` },
+            ];
+            bot.sendMessage(chatId, 'Please select the description of the property:', {
+                reply_markup: {
+                    inline_keyboard: [descriptionOptions.slice(0, 3), descriptionOptions.slice(3)],
+                },
+            });
+
+            bot.once('callback_query', (descriptionCallback) => {
+                const description = descriptionCallback.data.split(':')[3];
+
+                // Step 4: Ask for address
+                bot.sendMessage(chatId, 'Please enter the address of the property:');
+                bot.once('message', (addressMsg) => {
+                    const address = addressMsg.text;
+
+                    // Step 5: Ask for price
+                    bot.sendMessage(chatId, 'Please enter the price:');
+                    bot.once('message', (priceMsg) => {
+                        const price = priceMsg.text;
+
+                        // Step 6: Ask for contact information (phone number)
+                        bot.sendMessage(chatId, 'Please enter your contact phone number:');
+                        bot.once('message', (contactMsg) => {
+                            const contact = contactMsg.text;
+
+                            // Step 7: Collect multiple images
+                            const imageUrls = [];
+                            bot.sendMessage(chatId, 'Please upload images of the property. Send "done" when finished.');
+
+                            const imageListener = bot.on('message', async (imageMsg) => {
+                                if (imageMsg.text && imageMsg.text.toLowerCase() === 'done') {
+                                    bot.removeListener('message', imageListener);
+
+                                    // Step 8: Store all details in Google Sheets
+                                    const row = [lga, area, description, address, price, imageUrls.join(','), contact, userId];
+
+                                    // Append the row to Google Sheets
+                                    await appendToSheet(row);
+
+                                    bot.sendMessage(chatId, 'Property uploaded successfully!');
+                                } else if (imageMsg.photo) {
+                                    const photoId = imageMsg.photo[imageMsg.photo.length - 1].file_id;
+                                    const file = await bot.getFile(photoId);
+                                    const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+
+                                    try {
+                                        const imageBuffer = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+                                        const imgurUrl = await uploadImageToImgur(imageBuffer.data);
+
+                                        imageUrls.push(imgurUrl);
+                                        bot.sendMessage(chatId, 'Image uploaded. You can upload more or send "done" to finish.');
+                                    } catch (error) {
+                                        console.error('Error uploading image:', error);
+                                        bot.sendMessage(chatId, 'Failed to upload image. Please try again.');
+                                    }
+                                } else {
+                                    bot.sendMessage(chatId, 'Please upload an image or type "done" to finish.');
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    });
+}else if (text === 'Show My Properties') {
+  // Handle Show My Properties logic
+  const userId = msg.from.id;
+
+  // Fetch user's properties from Google Sheets
+  const userProperties = await fetchUserProperties(userId);
+
+  if (userProperties.length === 0) {
+    bot.sendMessage(chatId, 'You have not uploaded any properties yet.');
+    return;
+  }
+
+  userProperties.forEach(async (property, index) => {
+    const propertyMessage = 
+      `*Property ${index + 1}:*\n` +
+      `*LGA:* ${property.lga}\n` +
+      `*Area:* ${property.area}\n` +
+      `*Description:* ${property.description}\n` +
+      `*Price:* ₦${property.price}\n` +
+      `*Contact:* ${property.contact}\n` +
+      `*Visible:* ${property.taken === 'FALSE' ? 'Yes' : 'No'}`;
+
+    const propertyButtons = [
+      [{ text: '🗑️ Delete', callback_data: `delete_property:${index}:${userId}` }],
+      [{ text: '✏️ Update Price', callback_data: `update_property:${index}:${userId}` }],
+      [{ text: property.taken === 'FALSE' ? '🙈 Hide' : '👁️ Unhide', callback_data: `toggle_visibility:${index}:${userId}:${property.taken === 'FALSE'}` }]
+    ];
+
+    await bot.sendMessage(chatId, propertyMessage, {
+      reply_markup: {
+        inline_keyboard: propertyButtons
+      },
+      parse_mode: 'Markdown'
+    });
+  });
+}
+
+});
+
+
+// Load LGA data
+// const lgadata = JSON.parse(fs.readFileSync('./data/lgadata.json', 'utf8'));
+
+
 // Function to format LGAs into a grid
 function formatLGAAsGrid(lgas) {
     const inlineKeyboard = [];
@@ -264,13 +474,15 @@ function formatLGAAsGrid(lgas) {
     return inlineKeyboard;
   }
 
+
+
 // Function to fetch data from Google Sheets
 async function getSheetData() {
     const client = await auth.getClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: sheetRange,
-      auth: client,
+      auth: auth,
     });
     
     const rows = response.data.values;
@@ -287,7 +499,7 @@ async function getSheetData() {
           price,
           youtube_link: youtubeLink,
           contact,
-          image_url: imageUrl
+          image_url: imageUrl,
         });
       });
     }
@@ -295,15 +507,7 @@ async function getSheetData() {
     return properties;
   }
 
-// Start command
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "<b><i>Welcome!😁</i></b> Please select an LGA to search for properties or type the name of an LGA to search.", {
-      reply_markup: {
-        inline_keyboard: formatLGAAsGrid(Object.keys(lgadata["Akwa Ibom"])),
-      },
-      parse_mode: "HTML"
-    });
-  });
+
 
 // Function to show a property with navigation buttons
 async function showProperty(chatId, properties, index, selectedLga, selectedArea, selectedDescription) {
@@ -350,7 +554,6 @@ async function showProperty(chatId, properties, index, selectedLga, selectedArea
       });
   });
 }
-
 
 
 
@@ -425,16 +628,201 @@ bot.on('callback_query', async (callbackQuery) => {
     if (data.startsWith('navigate:')) {
         const [_, selectedLga, selectedArea, selectedDescription, indexStr, direction] = data.split(':');
         let index = parseInt(indexStr);
-        const properties = bot.chatData[msg.chat.id][`${selectedLga}:${selectedArea}:${selectedDescription}`].properties;
+        const propertiesX = bot.chatData[msg.chat.id][`${selectedLga}:${selectedArea}:${selectedDescription}`].properties;
 
         if (direction === 'next') {
-            index = (index + 1) % properties.length; // Loop to the first property if at the end
+            index = (index + 1) % propertiesX.length; // Loop to the first property if at the end
         } else if (direction === 'prev') {
-            index = (index - 1 + properties.length) % properties.length; // Loop to the last property if at the beginning
+            index = (index - 1 + propertiesX.length) % propertiesX.length; // Loop to the last property if at the beginning
         }
 
         bot.chatData[msg.chat.id][`${selectedLga}:${selectedArea}:${selectedDescription}`].index = index;
 
-        return showProperty(msg.chat.id, properties, index, selectedLga, selectedArea, selectedDescription);
+        return showProperty(msg.chat.id, propertiesX, index, selectedLga, selectedArea, selectedDescription);
     }
 });
+
+// Handle Property Actions (Delete, Update, Hide/Unhide)
+
+bot.on('callback_query', async (query) => {
+  const [action, propertyIndex, userId, isCurrentlyVisible] = query.data.split(':');
+  const propertyIndexInt = parseInt(propertyIndex);
+
+ // Check if userId is available
+ if (!userId) {
+  // bot.sendMessage(query.message.chat.id, 'User ID is missing. Please try again.');
+  return;
+}
+
+  // Fetch the properties for the user
+  const userProperties = await fetchUserProperties(userId);
+
+  // Get the specific property using the propertyIndex
+  const property = userProperties[propertyIndexInt];
+
+  switch (action) {
+    case 'delete_property':
+      try {
+          // Fetch user's properties again to get the correct index for the selected property
+          const userProperties = await fetchUserProperties(userId);
+          const propertyToDelete = userProperties[propertyIndex];
+  
+          if (propertyToDelete) {
+              // Perform batch update to delete the row
+              await sheets.spreadsheets.batchUpdate({
+                  spreadsheetId,
+                  auth: auth,
+                  resource: {
+                      requests: [
+                          {
+                              deleteDimension: {
+                                  range: {
+                                      sheetId: 0, // Assuming '0' is the correct sheet ID
+                                      dimension: 'ROWS',
+                                      startIndex: propertyToDelete.index, // Use the correct row index
+                                      endIndex: propertyToDelete.index + 1, // Delete only the row containing the property
+                                  },
+                              },
+                          },
+                      ],
+                  },
+              });
+  
+              bot.sendMessage(query.message.chat.id, 'Property deleted successfully.');
+          } else {
+              bot.sendMessage(query.message.chat.id, 'Property not found.');
+          }
+      } catch (error) {
+          console.error('Error deleting property:', error);
+          bot.sendMessage(query.message.chat.id, 'Failed to delete property. Please try again.');
+      }
+      break;
+  
+
+          case 'update_property':
+            // Prompt the user to enter the new price
+
+            bot.sendMessage(query.message.chat.id, 'Please enter the new price for the property:', {
+              reply_markup: {
+                  force_reply: true,
+                  input_field_placeholder: 'Enter new price...'
+              }
+          });
+
+          bot.once('message', async (priceMsg) => {
+              const newPrice = priceMsg.text;
+
+              // Fetch the properties of the user
+              const userProperties = await fetchUserProperties(userId);
+
+              // Ensure the correct property based on user input
+              const property = userProperties[propertyIndex];
+
+              if (property) {
+                  // Calculate the correct row index based on the fetched property index
+                  const rowIndex = property.index + 1; // Assuming property.index already accounts for the header row
+
+                  // Update the property price in Google Sheets
+                  const range = `Sheet1!D${rowIndex}`; // Adjust range to the correct row and column (e.g., E)
+
+                  await sheets.spreadsheets.values.update({
+                      spreadsheetId,
+                      range,
+                      valueInputOption: 'RAW',
+                      resource: {
+                          values: [[newPrice]]
+                      },
+                      auth: auth,
+                  });
+
+                  // Send a confirmation message
+                  bot.sendMessage(query.message.chat.id, `Property updated successfully.`,{
+                    reply_markup: {
+                      keyboard: [
+                        [{ text: 'Rent House' }, { text: 'Upload House' }], [{ text: 'Show My Properties' }]
+                      ],
+                      resize_keyboard: true,
+                      one_time_keyboard: false
+                    }
+                  });
+              } else {
+                  bot.sendMessage(query.message.chat.id, 'Property not found. Please try again.');
+              }
+          });
+          break;
+
+          case 'toggle_visibility':
+            try {
+                // Fetch user's properties again to get the correct index for the selected property
+                const userProperties = await fetchUserProperties(userId);
+                const propertyToToggle = userProperties[propertyIndex];
+        
+                if (propertyToToggle) {
+                    // Determine the new visibility state
+                    const newVisibility = isCurrentlyVisible === 'TRUE' ? 'FALSE' : 'TRUE';
+                    const visibilityRange = `Sheet1!I${propertyToToggle.index + 1}`; // Assuming visibility is in column I
+        
+                    // Update the visibility in Google Sheets
+                    await sheets.spreadsheets.values.update({
+                        spreadsheetId,
+                        range: visibilityRange,
+                        valueInputOption: 'RAW',
+                        resource: {
+                            values: [[newVisibility]]
+                        },
+                        auth: auth,
+                    });
+        
+                    // Send a confirmation message to the user
+                    bot.sendMessage(query.message.chat.id, `Property visibility updated to ${newVisibility === 'TRUE' ? 'Visible' : 'Hidden'}.`);
+                } else {
+                    bot.sendMessage(query.message.chat.id, 'Property not found.');
+                }
+            } catch (error) {
+                console.error('Error toggling property visibility:', error);
+                bot.sendMessage(query.message.chat.id, 'Failed to update property visibility. Please try again.');
+            }
+            break;
+        
+      default:
+          // bot.sendMessage(query.message.chat.id, 'Invalid action.');
+  }
+  
+});
+
+
+
+// Helper function to fetch properties for a specific user
+async function fetchUserProperties(userId) {
+  try {
+      const response = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: sheetRange,
+          auth: auth,
+      });
+
+      const rows = response.data.values || [];
+      const userProperties = [];
+
+      if (rows.length) {
+          rows.forEach((row, index) => {
+              if (row[9] && row[9].toString() === userId.toString()) { // Assuming userId is in the 10th column (J)
+                  userProperties.push({
+                      index: index + 1, // +1 to account for 0-based index in arrays
+                      userId: row[9],
+                      lga: row[0],
+                      area: row[1],
+                      description: row[2],
+                      price: row[3],
+                      image_url: row[6],
+                  });
+              }
+          });
+      }
+
+      return userProperties;
+  } catch (error) {
+      console.error('Error fetching user properties:', error);
+      return []; // Return an empty array in case of an error
+  }
+}
