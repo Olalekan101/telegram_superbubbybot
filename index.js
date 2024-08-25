@@ -307,7 +307,7 @@ bot.on('message', async(msg) => {
   else if (text === 'Upload House') {
 
     // Function to format LGAs into a grid
-function formatLGAAsGridUpload(lgas) {
+  function formatLGAAsGridUpload(lgas) {
   const inlineKeyboard = [];
   let row = [];
   lgas.forEach((lga, index) => {
@@ -323,101 +323,144 @@ function formatLGAAsGridUpload(lgas) {
   return inlineKeyboard;
 }
 
-    // Step 1: Present buttons for LGA selection
-    bot.sendMessage(chatId, 'Please select the Local Government Area (LGA) for the property:', {
-        reply_markup: {
-            inline_keyboard: formatLGAAsGridUpload(Object.keys(lgadata["Akwa Ibom"])),
-        },
-    });
+// Step 1: Present buttons for LGA selection
+bot.sendMessage(chatId, 'Please select the Local Government Area (LGA) for the property:', {
+  reply_markup: {
+      inline_keyboard: formatLGAAsGridUpload(Object.keys(lgadata["Akwa Ibom"])),
+  },
+});   
+      // Listen for LGA selection
+      bot.once('callback_query', (lgaCallback) => {
+          let lga = lgaCallback.data.split(':')[1];
 
-    // Listen for LGA selection
-    bot.once('callback_query', (lgaCallback) => {
-        const lga = lgaCallback.data.split(':')[1];
+          // Step 2: Present buttons for area selection
+          const areaOptions = lgadata['Akwa Ibom'][lga].map(area => [{ text: area, callback_data: `upload_area:${lga}:${area}` }]);
+          bot.sendMessage(chatId, 'Please select the area:', {
+              reply_markup: {
+                  inline_keyboard: areaOptions,
+              },
+          });
 
-        // Step 2: Present buttons for area selection
-        const areaOptions = lgadata['Akwa Ibom'][lga].map(area => [{ text: area, callback_data: `upload_area:${lga}:${area}` }]);
-        bot.sendMessage(chatId, 'Please select the area:', {
-            reply_markup: {
-                inline_keyboard: areaOptions,
-            },
-        });
+          bot.once('callback_query', (areaCallback) => {
+              let area = areaCallback.data.split(':')[2];
 
-        bot.once('callback_query', (areaCallback) => {
-            const area = areaCallback.data.split(':')[2];
+              // Step 3: Present buttons for property description selection
+              const descriptionOptions = [
+                  { text: 'Single Room', callback_data: `upload_description:${lga}:${area}:Single Room` },
+                  { text: 'Self Contain', callback_data: `upload_description:${lga}:${area}:Self Contain` },
+                  { text: '1 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:1 Bedroom Flat` },
+                  { text: '2 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:2 Bedroom Flat` },
+                  { text: '3 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:3 Bedroom Flat` },
+                  { text: 'Shop', callback_data: `upload_description:${lga}:${area}:Shop` },
+              ];
+              bot.sendMessage(chatId, 'Please select the description of the property:', {
+                  reply_markup: {
+                      inline_keyboard: [descriptionOptions.slice(0, 3), descriptionOptions.slice(3)],
+                  },
+              });
 
-            // Step 3: Present buttons for property description selection
-            const descriptionOptions = [
-                { text: 'Single Room', callback_data: `upload_description:${lga}:${area}:Single Room` },
-                { text: 'Self Contain', callback_data: `upload_description:${lga}:${area}:Self Contain` },
-                { text: '1 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:1 Bedroom Flat` },
-                { text: '2 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:2 Bedroom Flat` },
-                { text: '3 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:3 Bedroom Flat` },
-                { text: 'Shop', callback_data: `upload_description:${lga}:${area}:Shop` },
-            ];
-            bot.sendMessage(chatId, 'Please select the description of the property:', {
-                reply_markup: {
-                    inline_keyboard: [descriptionOptions.slice(0, 3), descriptionOptions.slice(3)],
-                },
-            });
+              bot.once('callback_query', (descriptionCallback) => {
+                  let description = descriptionCallback.data.split(':')[3];
 
-            bot.once('callback_query', (descriptionCallback) => {
-                const description = descriptionCallback.data.split(':')[3];
+                  // Step 4: Ask for address
+                  bot.sendMessage(chatId, 'Please enter the address of the property:');
+                  bot.once('message', (addressMsg) => {
+                      let address = addressMsg.text;
 
-                // Step 4: Ask for address
-                bot.sendMessage(chatId, 'Please enter the address of the property:');
-                bot.once('message', (addressMsg) => {
-                    const address = addressMsg.text;
+                      // Step 5: Ask for price
+                      bot.sendMessage(chatId, 'Please enter the price:');
+                      bot.once('message', (priceMsg) => {
+                          let price = priceMsg.text;
 
-                    // Step 5: Ask for price
-                    bot.sendMessage(chatId, 'Please enter the price:');
-                    bot.once('message', (priceMsg) => {
-                        const price = priceMsg.text;
+                          // Step 6: Ask for contact information (phone number)
+                          bot.sendMessage(chatId, 'Please enter your contact phone number:');
+                          bot.once('message', (contactMsg) => {
+                              let contact = contactMsg.text;
 
-                        // Step 6: Ask for contact information (phone number)
-                        bot.sendMessage(chatId, 'Please enter your contact phone number:');
-                        bot.once('message', (contactMsg) => {
-                            const contact = contactMsg.text;
+                              // Step 7: Present the "Upload Image" inline button
+                              bot.sendMessage(chatId, 'Click "Upload Image" to start uploading property images.', {
+                                  reply_markup: {
+                                      inline_keyboard: [
+                                          [{ text: 'Upload Image', callback_data: `upload_image:${lga}:${area}:${description}:${address}:${price}:${contact}` }]
+                                      ],
+                                  },
+                              });
 
-                            // Step 7: Collect multiple images
-                            const imageUrls = [];
-                            bot.sendMessage(chatId, 'Please upload images of the property.');
+                              let imageUrls = [];
 
-                            const imageListener = bot.on('message', async (imageMsg) => {
-                                if (imageMsg.text && imageMsg.text.toLowerCase() === 'done') {
-                                    bot.removeListener('message', imageListener);
+                              // Handling image uploads and completion
+  bot.on('callback_query', async (uploadCallback) => {
+  const callbackData = uploadCallback.data.split(':');
 
-                                    // Step 8: Store all details in Google Sheets
-                                    const row = [lga, area, description, price,' ', contact, imageUrls.join(','), address, false, msg.from.id];
+      // Notify user to send an image
+      bot.sendMessage(chatId, 'Please upload the image now.');
 
-                                    // Append the row to Google Sheets
-                                    await appendToSheet(row);
+      bot.once('message', async (imageMsg) => {
+          if (imageMsg.photo) {
+              try {
+                  const photoId = imageMsg.photo[imageMsg.photo.length - 1].file_id;
+                  const file = await bot.getFile(photoId);
+                  const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+                  const imageBuffer = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+                  const imgurUrl = await uploadImageToImgur(imageBuffer.data);
 
-                                    bot.sendMessage(chatId, 'Property uploaded successfully!');
-                                } else if (imageMsg.photo) {
-                                    const photoId = imageMsg.photo[imageMsg.photo.length - 1].file_id;
-                                    const file = await bot.getFile(photoId);
-                                    const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+                  imageUrls.push(imgurUrl);
 
-                                    try {
-                                        const imageBuffer = await axios.get(fileUrl, { responseType: 'arraybuffer' });
-                                        const imgurUrl = await uploadImageToImgur(imageBuffer.data);
+                  bot.sendMessage(chatId, 'House uploaded', {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: 'Done', callback_data: `upload_done:${lga}:${area}:${description}:${address}:${price}:${contact}` }]
+                        ]
+                    }});
+              } catch (error) {
+                  console.error('Error uploading image:', error);
+                  bot.sendMessage(chatId, 'Failed to upload image. Please try again.');
+              }
+          } else {
+              bot.sendMessage(chatId, 'Please upload a valid image.');
+          }
+      });
+   if (callbackData[0] === 'upload_done') {
+      // Finalize the upload process
+      const row = [
+          callbackData[1],  // LGA
+          callbackData[2],  // Area
+          callbackData[3],  // Description
+          callbackData[5],  // Price
+          ' ',
+          callbackData[6],  // Contact
+          imageUrls.join(','),  // Image URLs
+          callbackData[4],  // Address
+          false,
+          uploadCallback.from.id  // User ID
+      ];
 
-                                        imageUrls.push(imgurUrl);
-                                        bot.sendMessage(chatId, 'Image uploaded. send "done" to finish.');
-                                    } catch (error) {
-                                        console.error('Error uploading image:', error);
-                                        bot.sendMessage(chatId, 'Failed to upload image. Please try again.');
-                                    }
-                                } else {
-                                    bot.sendMessage(chatId, 'Please upload an image or type "done" to finish.');
-                                }
-                            });
-                        });
-                    });
-                });
-            });
-        });
-    });
+      try {
+          await appendToSheet(row);
+
+          // Clear temporary state
+          lga = null;
+          area = null;
+          description = null;
+          price = null;
+          contact = null;
+          imageUrls = [];
+          address = null;
+
+          bot.sendMessage(chatId, 'Property uploaded successfully!');
+      } catch (error) {
+          console.error('Error saving property details:', error);
+          bot.sendMessage(chatId, 'Failed to upload property. Please try again.');
+      }
+  }
+});
+                          });
+                      });
+                  });
+              });
+          });
+      });
+
 }else if (text === 'Show My Properties') {
   // Handle Show My Properties logic
   const userId = msg.from.id;
@@ -603,32 +646,46 @@ bot.on('callback_query', async (callbackQuery) => {
     }
 
     if (data.startsWith('description:')) {
-        const [_, selectedLga, selectedArea, selectedDescription] = data.split(':');
-        const properties = await getSheetData();
-        const dataTwo = properties[selectedLga][selectedArea];
-        const filterByDescription = (description) => dataTwo.filter(property => property.description.toLowerCase() === description.toLowerCase());
-
-        const filteredProperties = filterByDescription(selectedDescription);
-
-        if (filteredProperties.length === 0) {
-            return bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}*. Please choose another area.`, {
-                parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: lgadata["Akwa Ibom"][selectedLga].map(area => [{ text: area, callback_data: `area:${selectedLga}:${area}` }])
-                }
-            });
-        } else {
-            // Store the filtered properties and index in the user's chat data for navigation
-            bot.chatData = bot.chatData || {};
-            bot.chatData[msg.chat.id] = bot.chatData[msg.chat.id] || {};
-            bot.chatData[msg.chat.id][`${selectedLga}:${selectedArea}:${selectedDescription}`] = {
-                properties: filteredProperties,
-                index: 0
-            };
-
-            return showProperty(msg.chat.id, filteredProperties, 0, selectedLga, selectedArea, selectedDescription);
-        }
-    }
+      const [_, selectedLga, selectedArea, selectedDescription] = data.split(':');
+      const properties = await getSheetData();
+  
+      // Check if selectedLga and selectedArea exist in the data
+      if (!properties[selectedLga] || !properties[selectedLga][selectedArea]) {
+          return bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}*. Please choose another area.`, {
+              parse_mode: "Markdown",
+              reply_markup: {
+                  inline_keyboard: lgadata["Akwa Ibom"][selectedLga].map(area => [{ text: area, callback_data: `area:${selectedLga}:${area}` }])
+              }
+          });
+      }
+  
+      const dataTwo = properties[selectedLga][selectedArea];
+  
+      // Function to filter properties by description
+      const filterByDescription = (description) => dataTwo.filter(property => property.description.toLowerCase() === description.toLowerCase());
+  
+      const filteredProperties = filterByDescription(selectedDescription);
+  
+      if (filteredProperties.length === 0) {
+          return bot.sendMessage(msg.chat.id, `No properties found in *${selectedArea}*. Please choose another area.`, {
+              parse_mode: "Markdown",
+              reply_markup: {
+                  inline_keyboard: lgadata["Akwa Ibom"][selectedLga].map(area => [{ text: area, callback_data: `area:${selectedLga}:${area}` }])
+              }
+          });
+      } else {
+          // Store the filtered properties and index in the user's chat data for navigation
+          bot.chatData = bot.chatData || {};
+          bot.chatData[msg.chat.id] = bot.chatData[msg.chat.id] || {};
+          bot.chatData[msg.chat.id][`${selectedLga}:${selectedArea}:${selectedDescription}`] = {
+              properties: filteredProperties,
+              index: 0
+          };
+  
+          return showProperty(msg.chat.id, filteredProperties, 0, selectedLga, selectedArea, selectedDescription);
+      }
+  }
+  
 
     if (data.startsWith('navigate:')) {
         const [_, selectedLga, selectedArea, selectedDescription, indexStr, direction] = data.split(':');
