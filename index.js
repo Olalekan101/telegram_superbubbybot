@@ -307,7 +307,7 @@ bot.on('message', async(msg) => {
   else if (text === 'Upload House') {
 
     // Function to format LGAs into a grid
-  function formatLGAAsGridUpload(lgas) {
+function formatLGAAsGridUpload(lgas) {
   const inlineKeyboard = [];
   let row = [];
   lgas.forEach((lga, index) => {
@@ -323,18 +323,21 @@ bot.on('message', async(msg) => {
   return inlineKeyboard;
 }
 
-// Step 1: Present buttons for LGA selection
-bot.sendMessage(chatId, 'Please select the Local Government Area (LGA) for the property:', {
-  reply_markup: {
-      inline_keyboard: formatLGAAsGridUpload(Object.keys(lgadata["Akwa Ibom"])),
-  },
-});   
-      // Listen for LGA selection
+// Listening for the start of the upload process
+bot.on('message', (msg) => {
+  const chatId = msg.chat.id;
+
+  if (msg.text === 'Upload House') {
+      bot.sendMessage(chatId, 'Please select the Local Government Area (LGA) for the property:', {
+          reply_markup: {
+              inline_keyboard: formatLGAAsGridUpload(Object.keys(lgadata["Akwa Ibom"])),
+          },
+      });
+
       bot.once('callback_query', (lgaCallback) => {
           let lga = lgaCallback.data.split(':')[1];
 
-          // Step 2: Present buttons for area selection
-          const areaOptions = lgadata['Akwa Ibom'][lga].map(area => [{ text: area, callback_data: `upload_area:${lga}:${area}` }]);
+          const areaOptions = lgadata['Akwa Ibom'][lga].map(areaUpload => [{ text: areaUpload, callback_data: `areaX:${lga}:${areaUpload}` }]);
           bot.sendMessage(chatId, 'Please select the area:', {
               reply_markup: {
                   inline_keyboard: areaOptions,
@@ -344,122 +347,119 @@ bot.sendMessage(chatId, 'Please select the Local Government Area (LGA) for the p
           bot.once('callback_query', (areaCallback) => {
               let area = areaCallback.data.split(':')[2];
 
-              // Step 3: Present buttons for property description selection
               const descriptionOptions = [
-                  { text: 'Single Room', callback_data: `upload_description:${lga}:${area}:Single Room` },
-                  { text: 'Self Contain', callback_data: `upload_description:${lga}:${area}:Self Contain` },
-                  { text: '1 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:1 Bedroom Flat` },
-                  { text: '2 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:2 Bedroom Flat` },
-                  { text: '3 Bedroom Flat', callback_data: `upload_description:${lga}:${area}:3 Bedroom Flat` },
-                  { text: 'Shop', callback_data: `upload_description:${lga}:${area}:Shop` },
+                  { text: 'Single Room', callback_data: `desc:${lga}:${area}:Single Room` },
+                  { text: 'Self Contain', callback_data: `desc:${lga}:${area}:Self Contain` },
+                  { text: '1 Bedroom Flat', callback_data: `desc:${lga}:${area}:1 Bedroom Flat` },
+                  { text: '2 Bedroom Flat', callback_data: `desc:${lga}:${area}:2 Bedroom Flat` },
+                  { text: '3 Bedroom Flat', callback_data: `desc:${lga}:${area}:3 Bedroom Flat` },
+                  { text: 'Shop', callback_data: `desc:${lga}:${area}:Shop` },
               ];
               bot.sendMessage(chatId, 'Please select the description of the property:', {
                   reply_markup: {
-                      inline_keyboard: [descriptionOptions.slice(0, 3), descriptionOptions.slice(3)],
+                      inline_keyboard: [descriptionOptions.slice(0, 2), descriptionOptions.slice(2,4),descriptionOptions.slice(4,6)],
                   },
               });
 
               bot.once('callback_query', (descriptionCallback) => {
                   let description = descriptionCallback.data.split(':')[3];
 
-                  // Step 4: Ask for address
                   bot.sendMessage(chatId, 'Please enter the address of the property:');
                   bot.once('message', (addressMsg) => {
                       let address = addressMsg.text;
 
-                      // Step 5: Ask for price
                       bot.sendMessage(chatId, 'Please enter the price:');
                       bot.once('message', (priceMsg) => {
                           let price = priceMsg.text;
 
-                          // Step 6: Ask for contact information (phone number)
                           bot.sendMessage(chatId, 'Please enter your contact phone number:');
                           bot.once('message', (contactMsg) => {
                               let contact = contactMsg.text;
 
-                              // Step 7: Present the "Upload Image" inline button
-                              bot.sendMessage(chatId, 'Click "Upload Image" to start uploading property images.', {
-                                  reply_markup: {
-                                      inline_keyboard: [
-                                          [{ text: 'Upload Image', callback_data: `upload_image:${lga}:${area}:${description}:${address}:${price}:${contact}` }]
-                                      ],
-                                  },
-                              });
+                              bot.sendMessage(chatId, 'Please upload images of the property');
 
                               let imageUrls = [];
 
-                              // Handling image uploads and completion
-  bot.on('callback_query', async (uploadCallback) => {
-  const callbackData = uploadCallback.data.split(':');
+                              let messageWithSaveButton = null;
 
-      // Notify user to send an image
-      bot.sendMessage(chatId, 'Please upload the image now.');
-
-      bot.once('message', async (imageMsg) => {
-          if (imageMsg.photo) {
-              try {
-                  const photoId = imageMsg.photo[imageMsg.photo.length - 1].file_id;
-                  const file = await bot.getFile(photoId);
-                  const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
-                  const imageBuffer = await axios.get(fileUrl, { responseType: 'arraybuffer' });
-                  const imgurUrl = await uploadImageToImgur(imageBuffer.data);
-
-                  imageUrls.push(imgurUrl);
-
-                  bot.sendMessage(chatId, 'House uploaded', {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: 'Done', callback_data: `upload_done:${lga}:${area}:${description}:${address}:${price}:${contact}` }]
-                        ]
-                    }});
-              } catch (error) {
-                  console.error('Error uploading image:', error);
-                  bot.sendMessage(chatId, 'Failed to upload image. Please try again.');
-              }
-          } else {
-              bot.sendMessage(chatId, 'Please upload a valid image.');
-          }
-      });
-   if (callbackData[0] === 'upload_done') {
-      // Finalize the upload process
-      const row = [
-          callbackData[1],  // LGA
-          callbackData[2],  // Area
-          callbackData[3],  // Description
-          callbackData[5],  // Price
-          ' ',
-          callbackData[6],  // Contact
-          imageUrls.join(','),  // Image URLs
-          callbackData[4],  // Address
-          false,
-          uploadCallback.from.id  // User ID
-      ];
-
-      try {
-          await appendToSheet(row);
-
-          // Clear temporary state
-          lga = null;
-          area = null;
-          description = null;
-          price = null;
-          contact = null;
-          imageUrls = [];
-          address = null;
-
-          bot.sendMessage(chatId, 'Property uploaded successfully!');
-      } catch (error) {
-          console.error('Error saving property details:', error);
-          bot.sendMessage(chatId, 'Failed to upload property. Please try again.');
-      }
-  }
-});
+                              bot.on('message', async (imageMsg) => {
+                                  if (imageMsg.photo) {
+                                      const photoId = imageMsg.photo[imageMsg.photo.length - 1].file_id;
+                                      const file = await bot.getFile(photoId);
+                                      const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+                                      const imageBuffer = await axios.get(fileUrl, { responseType: 'arraybuffer' });
+                                      const imgurUrl = await uploadImageToImgur(imageBuffer.data);
+                              
+                                      imageUrls.push(imgurUrl);
+                              
+                                      if (!messageWithSaveButton) {
+                                          // Send the "Save" button for the first image upload
+                                          messageWithSaveButton = await bot.sendMessage(chatId, 'Image uploaded. Click "Save" to finalize.', {
+                                              reply_markup: {
+                                                  inline_keyboard: [
+                                                      [{ text: 'Save', callback_data: `upload_done:${lga}:${area}:${description}:${address}:${price}:${contact}` }],
+                                                  ],
+                                              },
+                                          });
+                                      } else {
+                                          // Update the existing message with the "Save" button
+                                          await bot.editMessageText('Click "Save" to Upload.', {
+                                              chat_id: chatId,
+                                              message_id: messageWithSaveButton.message_id,
+                                              reply_markup: {
+                                                  inline_keyboard: [
+                                                      [{ text: 'Save', callback_data: `upload_done:${lga}:${area}:${description}:${address}:${price}:${contact}` }],
+                                                  ],
+                                              },
+                                          });
+                                      }
+                                  }
+                              });
+                              
+                              bot.on('callback_query', async (doneCallback) => {
+                                  if (doneCallback.data.startsWith('upload_done')) {
+                                      const callbackData = doneCallback.data.split(':');
+                              
+                                      const row = [
+                                          callbackData[1],  // LGA
+                                          callbackData[2],  // Area
+                                          callbackData[3],  // Description
+                                          callbackData[5],  // Price
+                                          ' ',
+                                          callbackData[6],  // Contact
+                                          imageUrls.join(','),  // Image URLs
+                                          callbackData[4],  // Address
+                                          false,
+                                          doneCallback.from.id  // User ID
+                                      ];
+                              
+                                      await appendToSheet(row);
+                              
+                                      // Clear temporary state
+                                      lga = null;
+                                      area = null;
+                                      description = null;
+                                      price = null;
+                                      contact = null;
+                                      imageUrls = [];
+                                      address = null;
+                                      messageWithSaveButton = null; // Reset the message state
+                              
+                                      bot.sendMessage(chatId, 'Property uploaded successfully!');
+                                  }
+                              });
+                              
                           });
                       });
                   });
               });
           });
       });
+  }
+});
+
+
+
 
 }else if (text === 'Show My Properties') {
   // Handle Show My Properties logic
